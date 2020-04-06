@@ -1307,21 +1307,21 @@ static memcached_return_t textual_read_one_coll_response(memcached_server_write_
   switch(buffer[0])
   {
   case 'A': /* ATTR */
-    if (buffer[4] == ' ') /* ATTR */
+    if (memcmp(buffer, "ATTR_MISMATCH", 13) == 0 )
+      return MEMCACHED_ATTR_MISMATCH;
+    else if (memcmp(buffer, "ATTR_ERROR not found", 20) == 0)
+      return MEMCACHED_ATTR_ERROR_NOT_FOUND;
+    else if (memcmp(buffer, "ATTR_ERROR bad value", 20) == 0)
+      return MEMCACHED_ATTR_ERROR_BAD_VALUE;
+    else if (memcmp(buffer, "ATTR", 4) == 0)
     {
       memcached_server_response_increment(ptr);
       return MEMCACHED_ATTR;
     }
-    else if (buffer[5] == 'M') /* ATTR_MISMATCH */
-      return MEMCACHED_ATTR_MISMATCH;
-    else if (buffer[11] == 'n') /* ATTR_ERROR not found */
-      return MEMCACHED_ATTR_ERROR_NOT_FOUND;
-    else if (buffer[11] == 'b') /* ATTR_ERROR bad value */
-      return MEMCACHED_ATTR_ERROR_BAD_VALUE;
     /* This should not be happened */
     return MEMCACHED_NOTFOUND;
   case 'V': /* VALUE */
-    if (buffer[1] == 'A') /* VALUE */
+    if (memcmp(buffer, "VALUE", 5) == 0)
     {
       rc= textual_coll_value_fetch(ptr, buffer, result);
       if (rc == MEMCACHED_SUCCESS)
@@ -1337,38 +1337,33 @@ static memcached_return_t textual_read_one_coll_response(memcached_server_write_
       return MEMCACHED_UNKNOWN_READ_FAILURE;
     }
   case 'P': /* PIPE_ERROR */
-    if (buffer[1] == 'O') /* POSITION */
-    {
+    if (memcmp(buffer, "POSITION", 8) == 0)
       return MEMCACHED_POSITION;
-    }
+    else if (memcmp(buffer, "PIPE_ERROR command overflow", 27) == 0)
+      return MEMCACHED_PIPE_ERROR_COMMAND_OVERFLOW;
+    else if (memcmp(buffer, "PIPE_ERROR memory overflow", 26) == 0)
+      return MEMCACHED_PIPE_ERROR_MEMORY_OVERFLOW;
+    else if (memcmp(buffer, "PIPE_ERROR bad error", 20) == 0)
+      return MEMCACHED_PIPE_ERROR_BAD_ERROR;
     else
     {
-      if (buffer[11] == 'c')
-        return MEMCACHED_PIPE_ERROR_COMMAND_OVERFLOW;
-      else if (buffer[11] == 'm')
-        return MEMCACHED_PIPE_ERROR_MEMORY_OVERFLOW;
-      else if (buffer[11] == 'b')
-        return MEMCACHED_PIPE_ERROR_BAD_ERROR;
-      else
-      {
-        WATCHPOINT_STRING(buffer);
-        return MEMCACHED_UNKNOWN_READ_FAILURE;
-      }
+      WATCHPOINT_STRING(buffer);
+      return MEMCACHED_UNKNOWN_READ_FAILURE;
     }
   case 'O': /* OK */
-    if (buffer[1] == 'U') /* OUT_OF_RANGE */
+    if (memcmp(buffer, "OUT_OF_RANGE", 12) == 0)
       return MEMCACHED_OUT_OF_RANGE;
-    else if (buffer[1] == 'V') /* OVERFLOWED */
+    else if (memcmp(buffer, "OVERFLOWED", 10) == 0)
       return MEMCACHED_OVERFLOWED;
     return MEMCACHED_SUCCESS;
   case 'S': /* STORED STATS SERVER_ERROR */
     {
-      if (buffer[2] == 'A') /* STORED STATS */
+      if (memcmp(buffer, "STAT", 4) == 0)
       {
         memcached_server_response_increment(ptr);
         return MEMCACHED_STAT;
       }
-      else if (buffer[1] == 'E') /* SERVER_ERROR */
+      else if (memcmp(buffer, "SERVER_ERROR", 12) == 0)
       {
         if (total_read == memcached_literal_param_size("SERVER_ERROR"))
         {
@@ -1393,12 +1388,12 @@ static memcached_return_t textual_read_one_coll_response(memcached_server_write_
 
         return memcached_set_error(*ptr, MEMCACHED_SERVER_ERROR, MEMCACHED_AT, startptr, size_t(endptr - startptr));
       }
-      else if (buffer[1] == 'T')
+      else if (memcmp(buffer, "STORED", 6) == 0)
       {
         return MEMCACHED_STORED;
       }
 #ifdef ENABLE_REPLICATION
-      else if (buffer[1] == 'W')
+      else if (memcmp(buffer, "SWITCHOVER", 10) == 0)
       {
         return MEMCACHED_SWITCHOVER;
       }
@@ -1411,11 +1406,11 @@ static memcached_return_t textual_read_one_coll_response(memcached_server_write_
     }
   case 'D': /* DELETED or DELETED_DROPPED or DELETED_TRIMMED */
     {
-      if (buffer[8] == 'D')
+      if (memcmp(buffer, "DELETED_DROPPED", 15) == 0)
         return MEMCACHED_DELETED_DROPPED;
-      else if (buffer[8] == 'T')
+      else if (memcmp(buffer, "DELETED_TRIMMED", 15) == 0)
         return MEMCACHED_DELETED_TRIMMED;
-      else if (buffer[7] == '\r')
+      else if (memcmp(buffer, "DELETED", 7) == 0)
         return MEMCACHED_DELETED;
       else
       {
@@ -1427,20 +1422,15 @@ static memcached_return_t textual_read_one_coll_response(memcached_server_write_
     return MEMCACHED_LENGTH_MISMATCH;
   case 'N': /* NOT_FOUND */
     {
-      if (buffer[4] == 'F')
-      {
-        if (buffer[9] == '_')
-          return MEMCACHED_NOTFOUND_ELEMENT;
+      if (memcmp(buffer, "NOT_FOUND_ELEMENT", 17) == 0)
+        return MEMCACHED_NOTFOUND_ELEMENT;
+      else if (memcmp(buffer, "NOT_FOUND", 9) == 0)
         return MEMCACHED_NOTFOUND;
-      }
-      else if (buffer[4] == 'S')
-      {
-        if (buffer[5] == 'T')
-          return MEMCACHED_NOTSTORED;
-        if (buffer[5] == 'U')
-          return MEMCACHED_NOT_SUPPORTED;
-      }
-      else if (buffer[4] == 'E')
+      else if (memcmp(buffer, "NOT_STORED", 10) == 0)
+        return MEMCACHED_NOTSTORED;
+      else if (memcmp(buffer, "NOT_SUPPORTED", 13) == 0)
+        return MEMCACHED_NOT_SUPPORTED;
+      else if (memcmp(buffer, "NOT_EXIST", 9) == 0)
         return MEMCACHED_NOT_EXIST;
       else
       {
@@ -1451,11 +1441,11 @@ static memcached_return_t textual_read_one_coll_response(memcached_server_write_
   case 'R': /* RESPONSE - piped operation */
     {
 #ifdef ENABLE_REPLICATION
-      if (buffer[1] == 'E' && buffer[4] == '_') {
+      if (memcmp(buffer, "REPL_SLAVE", 10) == 0) {
         return MEMCACHED_REPL_SLAVE;
       }
 #endif
-      if (buffer[1] == 'E' && buffer[2] == 'P') {
+      if (memcmp(buffer, "REPLACED", 8) == 0) {
         /* REPLACED in response to bop upsert. */
         return MEMCACHED_REPLACED;
       }
@@ -1467,9 +1457,9 @@ static memcached_return_t textual_read_one_coll_response(memcached_server_write_
 
   case 'U': /* UNREADABLE or UPDATED */
     {
-      if (buffer[1] == 'P')
+      if (memcmp(buffer, "UPDATED", 7) == 0)
         return MEMCACHED_UPDATED;
-      else if (buffer[1] == 'N')
+      else if (memcmp(buffer, "UNREADABLE", 10) == 0)
         return MEMCACHED_UNREADABLE;
       else
       {
@@ -1479,19 +1469,19 @@ static memcached_return_t textual_read_one_coll_response(memcached_server_write_
     }
   case 'E': /* PROTOCOL ERROR or END */
     {
-      if (buffer[1] == 'N')
+      if (memcmp(buffer, "END", 3) == 0)
         return MEMCACHED_END;
-      else if (buffer[1] == 'F')
+      else if (memcmp(buffer, "EFLAG_MISMATCH", 14) == 0)
         return MEMCACHED_EFLAG_MISMATCH;
-      else if (buffer[1] == 'R')
+      else if (memcmp(buffer, "ERROR", 5) == 0)
         return MEMCACHED_PROTOCOL_ERROR;
-      else if (buffer[4] == 'T' && buffer[5] == '\r')
+      else if (memcmp(buffer, "EXISTS", 6) == 0)
+        return MEMCACHED_EXISTS;
+      else if (memcmp(buffer, "EXIST\r", 6) == 0)
         return MEMCACHED_EXIST; /* COLLECTION SET MEMBERSHIP CHECK */
-      else if (buffer[4] == 'T' && buffer[5] == 'S')
-        return MEMCACHED_EXISTS; /* EXISTS */
       else if (buffer[1] == 'X')
         return MEMCACHED_DATA_EXISTS;
-      else if (buffer[1] == 'L')
+      else if (memcmp(buffer, "ELEMENT_EXISTS", 14) == 0)
         return MEMCACHED_ELEMENT_EXISTS;
       else
       {
@@ -1501,9 +1491,9 @@ static memcached_return_t textual_read_one_coll_response(memcached_server_write_
     }
   case 'T': /* TYPE MISMATCH or TRIMMED */
     {
-      if (buffer[1] == 'R')
+      if (memcmp(buffer, "TRIMMED", 7) == 0)
         return MEMCACHED_TRIMMED;
-      else if (buffer[1] == 'Y')
+      else if (memcmp(buffer, "TYPE_MISMATCH", 13) == 0)
         return MEMCACHED_TYPE_MISMATCH;
       else
       {
@@ -1517,11 +1507,11 @@ static memcached_return_t textual_read_one_coll_response(memcached_server_write_
     return MEMCACHED_ITEM;
   case 'C': /* CLIENT ERROR or CREATED or CREATED_STORED */
     {
-      if (buffer[7] == '_')
+      if (memcmp(buffer, "CREATED_STORED", 14) == 0)
         return MEMCACHED_CREATED_STORED;
-      else if (buffer[6] == 'D')
+      else if (memcmp(buffer, "CREATED", 7) == 0)
         return MEMCACHED_CREATED;
-      else if (buffer[1] == 'O')
+      else if (memcmp(buffer, "COUNT", 5) == 0)
         return MEMCACHED_COUNT;
       return MEMCACHED_CLIENT_ERROR;
     }
@@ -2111,7 +2101,7 @@ static memcached_return_t textual_read_one_coll_smget_response(memcached_server_
   {
     case 'A': /* ATTR_MISMATCH */
       {
-        if (buffer[1] == 'T')
+        if (memcmp(buffer, "ATTR_MISMATCH", 13) == 0)
           return MEMCACHED_ATTR_MISMATCH;
         else
         {
@@ -2121,7 +2111,7 @@ static memcached_return_t textual_read_one_coll_smget_response(memcached_server_
       }
     case 'B': /* BKEY_MISMATCH */
       {
-        if (buffer[1] == 'K')
+        if (memcmp(buffer, "BKEY_MISMATCH", 13) == 0)
           return MEMCACHED_BKEY_MISMATCH;
         else
         {
@@ -2149,10 +2139,10 @@ static memcached_return_t textual_read_one_coll_smget_response(memcached_server_
      */
   case 'E': /* PROTOCOL ERROR or END */
     {
-      if (buffer[1] == 'N')
+      if (memcmp(buffer, "END", 3) == 0)
         return MEMCACHED_END;
 #ifdef SUPPORT_NEW_SMGET_INTERFACE
-      else if (buffer[1] == 'L') /* ELEMENTS */
+      else if (memcmp(buffer, "ELEMENTS", 8) == 0)
       {
         /* We add back in one because we will need to search for MISSED_KEYS */
         memcached_server_response_increment(ptr);
@@ -2164,7 +2154,7 @@ static memcached_return_t textual_read_one_coll_smget_response(memcached_server_
          */
       }
 #endif
-      else if (buffer[1] == 'R')
+      else if (memcmp(buffer, "ERROR", 5) == 0)
         return MEMCACHED_PROTOCOL_ERROR;
       else
       {
@@ -2173,7 +2163,7 @@ static memcached_return_t textual_read_one_coll_smget_response(memcached_server_
       }
     }
   case 'O': /* OUT_OF_RANGE */
-    if (buffer[1] == 'U') /* OUT_OF_RANGE */
+    if (memcmp(buffer, "OUT_OF_RANGE", 12) == 0)
       return MEMCACHED_OUT_OF_RANGE;
     else
     {
@@ -2182,9 +2172,9 @@ static memcached_return_t textual_read_one_coll_smget_response(memcached_server_
     }
   case 'D': /* DUPLICATED or DUPLICATED_TRIMMED */
     {
-      if (buffer[10] == '_')
+      if (memcmp(buffer, "DUPLICATED_TRIMMED", 18) == 0)
         return MEMCACHED_DUPLICATED_TRIMMED;
-      else if (buffer[10] == '\r')
+      else if (memcmp(buffer, "DUPLICATED", 10) == 0)
         return MEMCACHED_DUPLICATED;
       else
       {
@@ -2194,10 +2184,10 @@ static memcached_return_t textual_read_one_coll_smget_response(memcached_server_
     }
   case 'T': /* TYPE MISMATCH or TRIMMED */
     {
-      if (buffer[1] == 'R')
+      if (memcmp(buffer, "TRIMMED", 7) == 0)
       {
 #ifdef SUPPORT_NEW_SMGET_INTERFACE
-        if (buffer[7] == '_') { /* TRIMMED_KEYS */
+        if (memcmp(buffer, "TRIMMED_KEYS", 12) == 0) { /* TRIMMED_KEYS */
           /* We add back in one because we will need to search for END */
           memcached_server_response_increment(ptr);
           return textual_coll_smget_trimmed_key_fetch(ptr, buffer, result);
@@ -2205,7 +2195,7 @@ static memcached_return_t textual_read_one_coll_smget_response(memcached_server_
 #endif
         return MEMCACHED_TRIMMED;
       }
-      else if (buffer[1] == 'Y')
+      else if (memcmp(buffer, "TYPE_MISMATCH", 13) == 0)
       {
         return MEMCACHED_TYPE_MISMATCH;
       }
@@ -2217,20 +2207,15 @@ static memcached_return_t textual_read_one_coll_smget_response(memcached_server_
     }
   case 'N': /* NOT_FOUND */
     {
-      if (buffer[4] == 'F')
-      {
-        if (buffer[10] == '_')
-          return MEMCACHED_NOTFOUND_ELEMENT;
+      if (memcmp(buffer, "NOT_FOUND_ELEMENT", 17) == 0)
+        return MEMCACHED_NOTFOUND_ELEMENT;
+      else if (memcmp(buffer, "NOT_FOUND", 9) == 0)
         return MEMCACHED_NOTFOUND;
-      }
-      else if (buffer[4] == 'S')
-      {
-        if (buffer[5] == 'T')
-          return MEMCACHED_NOTSTORED;
-        if (buffer[5] == 'U')
-          return MEMCACHED_NOT_SUPPORTED;
-      }
-      else if (buffer[4] == 'E')
+      else if (memcmp(buffer, "NOT_STORED", 10) == 0)
+        return MEMCACHED_NOTSTORED;
+      else if (memcmp(buffer, "NOT_SUPPORTED", 13) == 0)
+        return MEMCACHED_NOT_SUPPORTED;
+      else if (memcmp(buffer, "NOT_EXIST", 9) == 0)
         return MEMCACHED_NOT_EXIST;
       else
       {
